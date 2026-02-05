@@ -4,9 +4,6 @@
 .RData
 .Ruserdata
 
-# Cached data (will be regenerated from source)
-data/
-
 # Environment
 .Renviron
 
@@ -21,3 +18,5 @@ Thumbs.db
 # Shiny
 *.log
 rsconnect/
+
+# Note: data/ is NOT ignored - it's auto-refreshed by GitHub Actions

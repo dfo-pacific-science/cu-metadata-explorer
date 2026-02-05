@@ -134,7 +134,57 @@ ui <- page_navbar(
     )
   ),
   
-  # Tab 3: Column Definitions
+  # Tab 3: Timeline
+  nav_panel(
+    title = "Timeline",
+    icon = icon("clock"),
+    layout_sidebar(
+      sidebar = sidebar(
+        title = "Timeline Options",
+        width = 280,
+        selectInput(
+          "timeline_year_field",
+          "Year Field",
+          choices = c(
+            "Latest Status Year" = "StatusProcess_LatestStatusYear",
+            "CU Verification Year" = "CU_Verification_Year",
+            "Site Verification Year" = "Site_Verification_Year",
+            "Benchmark Estimation Year" = "RelBM_EstimationYear"
+          )
+        ),
+        selectInput(
+          "timeline_color",
+          "Color By",
+          choices = c(
+            "Species" = "Species",
+            "DFO Region" = "DFORegion",
+            "Assessment Stage" = "StatusProcess_AssessmentStage",
+            "CU Verification" = "CU_Verification"
+          )
+        ),
+        checkboxInput("timeline_show_labels", "Show CU Labels", FALSE),
+        hr(),
+        p(class = "text-muted", "Timeline shows when CUs were assessed or verified. Hover over points for details.")
+      ),
+      layout_columns(
+        col_widths = 12,
+        card(
+          card_header("Assessment Timeline"),
+          plotlyOutput("timeline_chart", height = "500px")
+        ),
+        card(
+          card_header("Year Summary"),
+          layout_columns(
+            col_widths = c(6, 6),
+            plotlyOutput("year_histogram", height = "300px"),
+            DTOutput("year_summary_table")
+          )
+        )
+      )
+    )
+  ),
+  
+  # Tab 4: Column Definitions
   nav_panel(
     title = "Column Definitions",
     icon = icon("book"),
@@ -173,7 +223,7 @@ ui <- page_navbar(
     )
   ),
   
-  # Tab 4: About
+  # Tab 5: About
   nav_panel(
     title = "About",
     icon = icon("info-circle"),
@@ -187,7 +237,7 @@ This app provides an interactive interface for exploring Conservation Unit (CU) 
 
 ### Data Source
 
-Data is loaded dynamically from the [Metadata-Questionnaire-CU-Series](https://github.com/dfo-pacific-science/Metadata-Questionnaire-CU-Series) repository. The app checks for updates each time it loads.
+Data is loaded dynamically from the [Metadata-Questionnaire-CU-Series](https://github.com/dfo-pacific-science/Metadata-Questionnaire-CU-Series) repository. The app automatically refreshes data daily and also checks for updates each time it loads.
 
 ### Key Files
 
@@ -198,7 +248,8 @@ Data is loaded dynamically from the [Metadata-Questionnaire-CU-Series](https://g
 
 1. **Data Explorer**: Browse and filter the complete metadata table
 2. **Visualizations**: Interactive charts summarizing the data
-3. **Column Definitions**: Reference for what each column means and acceptable values
+3. **Timeline**: View CUs by assessment/verification year
+4. **Column Definitions**: Reference for what each column means and acceptable values
 
 ### Contact
 
@@ -424,6 +475,107 @@ server <- function(input, output, session) {
         pivot_wider(names_from = !!sym(input$viz_secondary), values_from = n, values_fill = 0) %>%
         datatable(options = list(pageLength = 10, scrollX = TRUE, dom = 't'), rownames = FALSE)
     }
+  })
+  
+  # Timeline chart
+  output$timeline_chart <- renderPlotly({
+    req(filtered_data(), input$timeline_year_field, input$timeline_color)
+    
+    df <- filtered_data()
+    year_col <- input$timeline_year_field
+    color_col <- input$timeline_color
+    
+    # Clean up year data - extract numeric years
+    plot_df <- df %>%
+      mutate(
+        year_val = as.numeric(gsub("[^0-9]", "", .data[[year_col]])),
+        hover_text = paste0(
+          "<b>", CU_Name, "</b><br>",
+          "CU ID: ", CU_ID, "<br>",
+          "Species: ", Species, "<br>",
+          "Region: ", DFORegion, "<br>",
+          "Year: ", .data[[year_col]]
+        )
+      ) %>%
+      filter(!is.na(year_val), year_val >= 2000, year_val <= 2030)
+    
+    if (nrow(plot_df) == 0) {
+      return(plotly_empty() %>% 
+               layout(title = "No valid year data available for selected field"))
+    }
+    
+    # Create jittered y positions for visibility
+    plot_df <- plot_df %>%
+      group_by(year_val, !!sym(color_col)) %>%
+      mutate(y_pos = row_number()) %>%
+      ungroup()
+    
+    p <- ggplot(plot_df, aes(
+      x = year_val, 
+      y = y_pos, 
+      color = !!sym(color_col),
+      text = hover_text
+    )) +
+      geom_point(size = 3, alpha = 0.7) +
+      scale_x_continuous(breaks = seq(2000, 2030, 2)) +
+      labs(
+        x = "Year",
+        y = "CUs",
+        color = color_col
+      ) +
+      theme_minimal() +
+      theme(
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        panel.grid.major.y = element_blank()
+      )
+    
+    if (input$timeline_show_labels) {
+      p <- p + geom_text(aes(label = CU_Acro), hjust = -0.2, size = 2, show.legend = FALSE)
+    }
+    
+    ggplotly(p, tooltip = "text") %>%
+      layout(legend = list(orientation = "h", y = -0.15))
+  })
+  
+  # Year histogram
+  output$year_histogram <- renderPlotly({
+    req(filtered_data(), input$timeline_year_field)
+    
+    df <- filtered_data()
+    year_col <- input$timeline_year_field
+    
+    plot_df <- df %>%
+      mutate(year_val = as.numeric(gsub("[^0-9]", "", .data[[year_col]]))) %>%
+      filter(!is.na(year_val), year_val >= 2000, year_val <= 2030)
+    
+    if (nrow(plot_df) == 0) {
+      return(plotly_empty())
+    }
+    
+    p <- ggplot(plot_df, aes(x = year_val)) +
+      geom_histogram(binwidth = 1, fill = "#2c3e50", color = "white") +
+      scale_x_continuous(breaks = seq(2000, 2030, 2)) +
+      labs(x = "Year", y = "Number of CUs") +
+      theme_minimal()
+    
+    ggplotly(p)
+  })
+  
+  # Year summary table
+  output$year_summary_table <- renderDT({
+    req(filtered_data(), input$timeline_year_field)
+    
+    df <- filtered_data()
+    year_col <- input$timeline_year_field
+    
+    df %>%
+      mutate(year_val = as.numeric(gsub("[^0-9]", "", .data[[year_col]]))) %>%
+      filter(!is.na(year_val)) %>%
+      count(year_val, name = "CU_Count") %>%
+      arrange(desc(year_val)) %>%
+      rename(Year = year_val) %>%
+      datatable(options = list(pageLength = 10, dom = 't'), rownames = FALSE)
   })
   
   # Filtered definitions

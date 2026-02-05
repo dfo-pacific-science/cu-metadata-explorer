@@ -1,0 +1,86 @@
+name: Daily Data Refresh
+
+on:
+  schedule:
+    # Run daily at 6 AM UTC (10 PM PST / 11 PM PDT)
+    - cron: '0 6 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  refresh-cache:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.3'
+      
+      - name: Install dependencies
+        run: |
+          install.packages(c("httr", "readr", "jsonlite"))
+        shell: Rscript {0}
+      
+      - name: Fetch and cache data
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          library(httr)
+          library(readr)
+          
+          # Create data directory
+          if (!dir.exists("data")) dir.create("data")
+          
+          # Fetch CU metadata
+          response <- GET(
+            "https://api.github.com/repos/dfo-pacific-science/Metadata-Questionnaire-CU-Series/contents/DATA/x_CU_Level_Metadata.csv",
+            add_headers(
+              Accept = "application/vnd.github.v3.raw",
+              Authorization = paste("Bearer", Sys.getenv("GITHUB_TOKEN"))
+            )
+          )
+          
+          if (status_code(response) == 200) {
+            content <- content(response, as = "text", encoding = "UTF-8")
+            df <- read_csv(content, show_col_types = FALSE)
+            write_csv(df, "data/cu_metadata_cache.csv")
+            message("Successfully cached CU metadata: ", nrow(df), " rows")
+          } else {
+            stop("Failed to fetch CU metadata: ", status_code(response))
+          }
+          
+          # Fetch descriptions
+          response <- GET(
+            "https://api.github.com/repos/dfo-pacific-science/Metadata-Questionnaire-CU-Series/contents/DATA/x_MetadataDescriptions.csv",
+            add_headers(
+              Accept = "application/vnd.github.v3.raw",
+              Authorization = paste("Bearer", Sys.getenv("GITHUB_TOKEN"))
+            )
+          )
+          
+          if (status_code(response) == 200) {
+            content <- content(response, as = "text", encoding = "UTF-8")
+            lines <- strsplit(content, "\n")[[1]]
+            data_lines <- lines[!grepl("^#", lines)]
+            clean_content <- paste(data_lines, collapse = "\n")
+            df <- read_csv(clean_content, show_col_types = FALSE)
+            write_csv(df, "data/descriptions_cache.csv")
+            message("Successfully cached descriptions: ", nrow(df), " rows")
+          } else {
+            stop("Failed to fetch descriptions: ", status_code(response))
+          }
+          
+          # Write timestamp
+          writeLines(as.character(Sys.time()), "data/last_refresh.txt")
+        shell: Rscript {0}
+      
+      - name: Commit and push if changed
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add data/
+          git diff --staged --quiet || git commit -m "Auto-refresh data cache [skip ci]"
+          git push
