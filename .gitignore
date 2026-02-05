@@ -1,0 +1,23 @@
+# R files
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# Cached data (will be regenerated from source)
+data/
+
+# Environment
+.Renviron
+
+# IDE
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Shiny
+*.log
+rsconnect/
