@@ -11,12 +11,18 @@ An interactive Shiny application for exploring Conservation Unit (CU) level meta
 
 ## Data Source
 
-This app dynamically loads data from the [Metadata-Questionnaire-CU-Series](https://github.com/dfo-pacific-science/Metadata-Questionnaire-CU-Series) repository:
+This app loads data from the [Metadata-Questionnaire-CU-Series](https://github.com/dfo-pacific-science/Metadata-Questionnaire-CU-Series) repository:
 
 - `DATA/x_CU_Level_Metadata.csv` - Main metadata table with ~103 columns describing each CU
 - `DATA/x_MetadataDescriptions.csv` - Column definitions and documentation
 
-Data is cached locally for resilience and refreshed on demand.
+For reliability, the repo includes cached copies in `data/`:
+
+- `data/cu_metadata_cache.csv`
+- `data/descriptions_cache.csv`
+- `data/last_refresh.txt`
+
+At runtime, the app tries GitHub first and falls back to local cache if needed.
 
 ## Running Locally
 
@@ -37,10 +43,16 @@ Data is cached locally for resilience and refreshed on demand.
 
 ### Quick Start
 
-```r
+```bash
 # Clone the repository
-# git clone https://github.com/dfo-pacific-science/cu-metadata-explorer.git
+git clone https://github.com/dfo-pacific-science/cu-metadata-explorer.git
+cd cu-metadata-explorer
 
+# Optional: refresh local cache from source data
+./update-agent.sh
+```
+
+```r
 # Open R in the project directory and run:
 shiny::runApp()
 ```
@@ -78,7 +90,8 @@ cu-metadata-explorer/
 ├── R/
 │   ├── data_loader.R     # GitHub data fetching with caching
 │   └── utils.R           # Helper functions
-├── data/                 # Cached data (gitignored)
+├── data/                 # Cached data committed for runtime fallback
+├── update-agent.sh       # Manual cache refresh helper
 ├── README.md
 └── .gitignore
 ```
