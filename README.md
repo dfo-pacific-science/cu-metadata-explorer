@@ -59,16 +59,24 @@ shiny::runApp()
 
 ### GitHub Authentication (for private repos)
 
-If the source data repository is private, set your GitHub token:
+If the source data repository is private, set a token in your local env:
 
 ```r
-Sys.setenv(GITHUB_TOKEN = "your_github_pat_here")
+Sys.setenv(CU_METADATA_SOURCE_TOKEN = "your_github_pat_here")
 ```
 
 Or add to your `.Renviron` file:
 ```
-GITHUB_TOKEN=your_github_pat_here
+CU_METADATA_SOURCE_TOKEN=your_github_pat_here
 ```
+
+`update-agent.sh` token precedence is:
+1. `CU_METADATA_SOURCE_TOKEN`
+2. `HIVE_BRAIN_GH_TOKEN_DFO_PAC_SCI`
+3. `GITHUB_TOKEN`
+4. `gh auth token`
+
+For GitHub Actions, set repo secret `CU_METADATA_SOURCE_TOKEN` (preferred) for reliable private-repo refreshes.
 
 ## Deployment
 

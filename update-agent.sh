@@ -6,9 +6,10 @@ set -euo pipefail
 #   ./update-agent.sh
 #
 # Token resolution order:
-#   1) GITHUB_TOKEN
+#   1) CU_METADATA_SOURCE_TOKEN
 #   2) HIVE_BRAIN_GH_TOKEN_DFO_PAC_SCI
-#   3) gh auth token (if logged in)
+#   3) GITHUB_TOKEN
+#   4) gh auth token (if logged in)
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DATA_DIR="$ROOT_DIR/data"
@@ -23,12 +24,16 @@ DESC_PATH="DATA/x_MetadataDescriptions.csv"
 mkdir -p "$DATA_DIR"
 
 resolve_token() {
-  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-    printf '%s' "$GITHUB_TOKEN"
+  if [[ -n "${CU_METADATA_SOURCE_TOKEN:-}" ]]; then
+    printf '%s' "$CU_METADATA_SOURCE_TOKEN"
     return
   fi
   if [[ -n "${HIVE_BRAIN_GH_TOKEN_DFO_PAC_SCI:-}" ]]; then
     printf '%s' "$HIVE_BRAIN_GH_TOKEN_DFO_PAC_SCI"
+    return
+  fi
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    printf '%s' "$GITHUB_TOKEN"
     return
   fi
   if command -v gh >/dev/null 2>&1; then
